@@ -37,6 +37,10 @@ class DeepLearningFrame(object):
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
 
+            merged = tf.summary.merge_all()
+
+            train_writer = tf.summary.FileWriter('./summary/', sess.graph)
+
             while self._data_pro.latest_epochs < epoch:
 
                 epoch_start = self._data_pro.latest_epochs
@@ -65,11 +69,16 @@ class DeepLearningFrame(object):
                     h_valid_loss = sess.run(self._abs_h_loss, feed_dict=valid_dict)
                     print('valid_m_loss:%.3f valid_h_loss:%.3f' % (m_valid_loss, h_valid_loss))
 
+                    summary = sess.run(merged)
+                    train_writer.add_summary(summary, self._data_pro.latest_epochs)
+
 
             # print(sess.run([self.net.get_weights()]))
             check_point_file = self._save_path+self._data_pro.name()+'_'+self._net.name()+'_'\
                                +time.strftime('%Y-%m-%d %H:00:00', time.localtime())
             self._saver.save(sess, check_point_file +'.ckpt', 1)
+
+            train_writer.close()
 
     def test(self):
         with tf.Session() as sess:
