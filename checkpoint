@@ -1,0 +1,2 @@
+model_checkpoint_path: "mnist_ckptmodel_2018-01-09 09:00:00.ckpt-1"
+all_model_checkpoint_paths: "mnist_ckptmodel_2018-01-09 09:00:00.ckpt-1"
