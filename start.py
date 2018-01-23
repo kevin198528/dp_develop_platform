@@ -29,26 +29,26 @@ dp = DeepLearningFrame(param.data(), param.net(), param.loss())
 
 # dp = DeepLearningFrame(MnistData(), MniConvNet(), MnistLoss(loss_dim=10))
 
-dp.train(learn_rat=0.00001, epoch=100, show=100)
+dp.train(learn_rat=0.00003, epoch=100, show=100)
 
 dp.test()
 
-# #
-# # _num_examples = 3
-# #
-# # _images = np.array([[[1]], [[2]], [[3]]])
-# #
-# # perm = np.arange(_num_examples)
-# # print(perm)
-# # np.random.shuffle(perm)
-# # print(perm)
-# #
-# # _images = _images[perm]
-# # # _labels = _labels[perm]
-# #
-# # print(_images)
 #
+# _num_examples = 3
 #
+# _images = np.array([[[1]], [[2]], [[3]]])
+#
+# perm = np.arange(_num_examples)
+# print(perm)
+# np.random.shuffle(perm)
+# print(perm)
+#
+# _images = _images[perm]
+# # _labels = _labels[perm]
+#
+# print(_images)
+
+
 # def label_to_hot(label):
 #     tmp = np.arange(label.max() + 1)
 #     return (tmp == label[:, None]).astype(np.int)

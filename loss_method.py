@@ -108,7 +108,7 @@ class MnistLoss(LossMethod):
         # rand = tf.constant(a, dtype=tf.float32)
         # rand = tf.random_shuffle(rand)
 
-        rand = tf.random_normal([100, 10], mean=0.0, stddev=1.0 + lamda*tf.floor(epoch/tmp))
+        rand = tf.random_normal([100, 10], mean=0.0, stddev=2.0 + lamda*tf.floor(epoch/tmp))
         # rand = tf.random_normal([100, 10], mean=0.0, stddev=1.0)
         rand = tf.abs(rand)
         rand = tf.minimum(1.0, rand)

@@ -25,13 +25,13 @@ class DeepLearningFrame(object):
         #
         # learning_rate = tf.train.exponential_decay(learn_rat,
         #                                            global_step=global_step,
-        #                                            decay_steps=10, decay_rate=0.6)
-
-
+        #                                            decay_steps=5, decay_rate=0.8)
+        #
+        #
         # train = tf.train.GradientDescentOptimizer(learning_rate).minimize(self._abs_m_loss)
-
+        #
         # add_global = global_step.assign_add(1)
-
+        #
         train = tf.train.GradientDescentOptimizer(learn_rat).minimize(self._abs_m_loss)
 
         with tf.Session() as sess:
@@ -69,7 +69,7 @@ class DeepLearningFrame(object):
                     h_valid_loss = sess.run(self._abs_h_loss, feed_dict=valid_dict)
                     print('valid_m_loss:%.3f valid_h_loss:%.3f' % (m_valid_loss, h_valid_loss))
 
-                    summary = sess.run(merged)
+                    summary = sess.run(merged, feed_dict=valid_dict)
                     train_writer.add_summary(summary, self._data_pro.latest_epochs)
 
 
