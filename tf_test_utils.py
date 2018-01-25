@@ -2,7 +2,9 @@ from include_pkg import *
 import tensorflow as tf
 import numpy as np
 
+
 from tensorflow.examples.tutorials.mnist import input_data
+
 
 # alias tf_test_utils as ttu
 def print_var(var):
@@ -11,20 +13,25 @@ def print_var(var):
         val = sess.run(var)
         return val
 
+
 def weight_variable(shape):
-  initial = tf.truncated_normal(shape, stddev=0.1)
-  return tf.Variable(initial)
+    initial = tf.truncated_normal(shape, stddev=0.01)
+    return tf.Variable(initial)
+
 
 def bias_variable(shape):
-  initial = tf.constant(0.1, shape=shape)
-  return tf.Variable(initial)
+    initial = tf.constant(0.01, shape=shape)
+    return tf.Variable(initial)
+
 
 def conv2d(x, W):
-  return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+
 
 def max_pool_2x2(x):
-  return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
                         strides=[1, 2, 2, 1], padding='SAME')
+
 
 def batchnorm(Ylogits, is_test, iteration, offset, convolutional=False):
     exp_moving_avg = tf.train.ExponentialMovingAverage(0.999, iteration) # adding the iteration prevents from averaging across non-existing iterations
@@ -38,6 +45,7 @@ def batchnorm(Ylogits, is_test, iteration, offset, convolutional=False):
     v = tf.cond(is_test, lambda: exp_moving_avg.average(variance), lambda: variance)
     Ybn = tf.nn.batch_normalization(Ylogits, m, v, offset, None, bnepsilon)
     return Ybn, update_moving_averages
+
 
 def variable_summaries(var):
     """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
@@ -62,10 +70,17 @@ mnist = input_data.read_data_sets('../data_set/mnist/', one_hot=True)
 x = tf.placeholder("float", shape=[None, 784])
 y_ = tf.placeholder("float", shape=[None, 10])
 
-keep_prob = tf.placeholder("float")
+B1 = tf.Variable(tf.random_normal([16], stddev=0.01))
+B2 = tf.Variable(tf.random_normal([32], stddev=0.01))
+B3 = tf.Variable(tf.random_normal([128], stddev=0.01))
 
-tst = tf.placeholder(tf.bool)
-iter = tf.placeholder(tf.int32)
+SCAL1 = tf.Variable(tf.random_normal([16], mean=1.0, stddev=0.01))
+SCAL2 = tf.Variable(tf.random_normal([32], mean=1.0, stddev=0.01))
+SCAL3 = tf.Variable(tf.random_normal([128], mean=1.0, stddev=0.01))
+
+test_flag = tf.placeholder(dtype=tf.bool)
+
+keep_prob = tf.placeholder("float")
 
 W = tf.Variable(tf.zeros([784,10]))
 b = tf.Variable(tf.zeros([10]))
@@ -73,63 +88,83 @@ b = tf.Variable(tf.zeros([10]))
 W_fc2 = weight_variable([1024, 10])
 b_fc2 = bias_variable([10])
 
-W_conv1 = weight_variable([3, 3, 1, 32])
-b_conv1 = bias_variable([32])
-B1 = tf.Variable(tf.constant(0.1, tf.float32, [32]))
+W_conv1 = weight_variable([2, 2, 1, 16])
+b_conv1 = bias_variable([16])
 
-W_conv2 = weight_variable([3, 3, 32, 64])
-B2 = tf.Variable(tf.constant(0.1, tf.float32, [64]))
-b_conv2 = bias_variable([64])
+W_conv2 = weight_variable([2, 2, 16, 32])
+b_conv2 = bias_variable([32])
 
-W_conv3 = weight_variable([3, 3, 64, 128])
-B3 = tf.Variable(tf.constant(0.1, tf.float32, [128]))
+W_conv3 = weight_variable([7, 7, 32, 128])
 b_conv3 = bias_variable([128])
 
-W_fc1 = weight_variable([4 * 4 * 128, 1024])
+W_fc1 = weight_variable([1 * 1 * 128, 1024])
 b_fc1 = bias_variable([1024])
 
 x_image = tf.reshape(x, [-1,28,28,1])
 
-# t1 = conv2d(x_image, W_conv1)
-# t1bn, ema1 = batchnorm(t1, tst, iter, B1, convolutional=True)
+bnepsilon = 1e-5
 
-t1bn = conv2d(x_image, W_conv1) + b_conv1
-h_conv1 = tf.nn.relu(t1bn)
-h_pool1 = max_pool_2x2(h_conv1)
+iter1 = tf.Variable(1, dtype=tf.float32)
+
+iter_update = tf.assign(iter1, iter1 + 1.0)
+
+with tf.control_dependencies([iter_update]):
+    t1 = tf.nn.conv2d(x_image, W_conv1, strides=[1, 2, 2, 1], padding='VALID')
+
+with tf.name_scope('iter1'):
+    variable_summaries(iter1)
+
+
+m1, v1 = tf.nn.moments(t1, [0, 1, 2])
+
+t1bn = tf.nn.batch_normalization(t1, m1, v1, B1, SCAL1, variance_epsilon=bnepsilon)
 
 with tf.name_scope('l1_out_put'):
-    variable_summaries(h_pool1)
+    variable_summaries(t1bn)
+with tf.name_scope('w_conv1'):
+    variable_summaries(W_conv1)
+with tf.name_scope('offset1'):
+    variable_summaries(B1)
+with tf.name_scope('scal1'):
+    variable_summaries(SCAL1)
 
+t2 = tf.nn.conv2d(t1bn, W_conv2, strides=[1, 2, 2, 1], padding='VALID')
 
-# t2 = conv2d(h_pool1, W_conv2)
-# t2bn, ema2 = batchnorm(t2, tst, iter, B2, convolutional=True)
+m2, v2 = tf.nn.moments(t2, [0, 1, 2])
 
-t2bn = conv2d(h_pool1, W_conv2)
-h_conv2 = tf.nn.relu(t2bn)
-h_pool2 = max_pool_2x2(h_conv2)
+t2bn = tf.nn.batch_normalization(t2, m2, v2, B2, SCAL2, variance_epsilon=bnepsilon)
 
 with tf.name_scope('l2_out_put'):
-    variable_summaries(h_pool2)
+    variable_summaries(t2bn)
+with tf.name_scope('w_conv2'):
+    variable_summaries(W_conv2)
+with tf.name_scope('offset2'):
+    variable_summaries(B2)
+with tf.name_scope('scal2'):
+    variable_summaries(SCAL2)
 
-# t3 = conv2d(h_pool2, W_conv3)
-# t3bn, ema3 = batchnorm(t3, tst, iter, B3, convolutional=True)
+t3 = tf.nn.conv2d(t2bn, W_conv3, strides=[1, 1, 1, 1], padding='VALID')
+# t3 = conv2d(t2bn, W_conv3)
 
-t3bn = conv2d(h_pool2, W_conv3)
-h_conv3 = tf.nn.relu(t3bn)
-h_pool3 = max_pool_2x2(h_conv3)
+m3, v3 = tf.nn.moments(t3, [0, 1, 2])
+
+t3bn = tf.nn.batch_normalization(t3, m3, v3, B3, SCAL3, variance_epsilon=bnepsilon)
+
+# h_pool3 = max_pool_2x2(t3bn)
 
 with tf.name_scope('l1_out_put'):
-    variable_summaries(h_pool3)
+    variable_summaries(t3bn)
+with tf.name_scope('w_conv3'):
+    variable_summaries(W_conv3)
+with tf.name_scope('offset3'):
+    variable_summaries(B3)
+with tf.name_scope('scal3'):
+    variable_summaries(SCAL3)
 
-h_pool2_flat = tf.reshape(h_pool3, [-1, 4*4*128])
-h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
+h_pool2_flat = tf.reshape(t3bn, [-1, 1*1*128])
+h_fc1 = tf.matmul(h_pool2_flat, W_fc1) + b_fc1
 
-h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
-
-y_conv = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
-
-
-# update_ema = tf.group(ema1, ema2, ema3)
+y_conv = tf.nn.softmax(tf.matmul(h_fc1, W_fc2) + b_fc2)
 
 sess = tf.InteractiveSession()
 
@@ -141,19 +176,27 @@ sess.run(tf.global_variables_initializer())
 
 train_writer = tf.summary.FileWriter('./summary/', sess.graph)
 merged = tf.summary.merge_all()
-for i in range(100):
-    batch = mnist.train.next_batch(50)
-    if i % 10 == 0:
-        train_accuracy = accuracy.eval(feed_dict={x:batch[0], y_: batch[1], keep_prob: 1.0, tst: False, iter: i})
+for i in range(5000):
+    batch = mnist.train.next_batch(100)
+    if i % 20 == 0:
+        train_accuracy = accuracy.eval(feed_dict={x:batch[0], y_: batch[1], test_flag: True, keep_prob: 1.0})
         print("step %d, training accuracy %g"%(i, train_accuracy))
-        summary = sess.run(merged, feed_dict={x: batch[0], y_: batch[1], keep_prob: 1.0, tst: False, iter: i})
+        summary = sess.run(merged, feed_dict={x: batch[0], y_: batch[1], test_flag: True, keep_prob: 1.0})
         train_writer.add_summary(summary, i)
 
-    train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 1.0, tst: False, iter: i})
+    train_step.run(feed_dict={x: batch[0], y_: batch[1], test_flag: False, keep_prob: 1.0})
     # sess.run(update_ema, {x: batch[0], y_: batch[1], keep_prob: 1.0, tst: False, iter: i})
 
-print("test accuracy %g" % accuracy.eval(feed_dict={x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0,
-                                                    tst: False, iter: i}))
+test_batch = mnist.test.next_batch(2000)
+
+print(test_batch[0].shape)
+print(test_batch[1].shape)
+
+print("test accuracy %g" % accuracy.eval(feed_dict={x: test_batch[0], y_: test_batch[1], test_flag:False,
+                                                    keep_prob: 1.0}))
+
+# print("test accuracy %g" % accuracy.eval(feed_dict={x: mnist.test.images, y_: mnist.test.labels, test_flag:False,
+#                                                     keep_prob: 1.0}))
 
 
 # if __name__ == '__main__':
