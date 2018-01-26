@@ -64,7 +64,6 @@ def variable_summaries(var):
         # 用直方图记录参数的分布
         tf.summary.histogram('his', var)
 
-
 mnist = input_data.read_data_sets('../data_set/mnist/', one_hot=True)
 
 x = tf.placeholder("float", shape=[None, 784])

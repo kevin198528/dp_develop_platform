@@ -1,4 +1,3 @@
-from include_pkg import *
 import pickle
 from data_process import *
 from nn_layer import *
