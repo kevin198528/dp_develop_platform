@@ -49,14 +49,96 @@ def IoU(box, boxes):
     ovr = inter / (box_area + area - inter)
     return ovr
 
+def img_random_operate(pic, idx):
+    op = np.random.randint(0, 4, 1)[0]
 
+    op0 = tf.image.random_brightness(pic, 0.6, seed=idx)
+    op1 = tf.image.random_contrast(pic, lower=0.2, upper=2.0, seed=idx)
+    op2 = tf.image.random_saturation(image=pic, lower=0.1, upper=1.5, seed=idx)
+    op3 = tf.image.random_hue(image=pic, max_delta=0.2, seed=idx)
 
+    with tf.Session() as sess:
+
+        if (op == 0):
+            ret = sess.run(op0)
+            print('brightness')
+        elif (op == 1):
+            ret = sess.run(op1)
+            print('contrast')
+        elif (op == 2):
+            ret = sess.run(op2)
+            print('saturation')
+        elif (op == 3):
+            ret = sess.run(op3)
+            print('hue')
+    return ret
+
+# zero bounding box use global random select
+def get_zero_bounding_box(width, high, annotations):
+    pass
+
+# normal bounding box use face random.randn select
+def get_normal_bounding_box(width, high, annotations, iou):
+    pass
+
+def get_bounding_box(width, high, annotations, iou):
+    if iou == 0.0:
+        return get_zero_bounding_box(width, high, annotations)
+    else:
+        return get_normal_bounding_box(width, high, annotations, iou)
+
+iou_field = np.linspace(0, 1.0, 11)
+
+print(iou_field)
+
+box_size = 24
 
 img_file = '/home/kevin/face/wider_face/WIDER_train/images'
 label_file = './wider_face_train.txt'
 
+join = lambda a: os.path.join(img_file, a + '.jpg')
+
 with open(label_file, 'r') as f:
     annotations = f.readlines()
+
+# select random img
+idx_random_img = np.random.randint(0, len(annotations), 1)[0]
+
+annotation = annotations[idx_random_img].strip().split(' ')
+
+# read img
+pic = cv2.imread(join(annotation[0]))
+
+# random img convert
+pic = img_random_operate(pic, idx_random_img)
+
+pic_width = pic.shape[1]
+pic_high = pic.shape[0]
+
+annotations = np.array(annotation[1:]).astype(np.float32).astype(np.int32).reshape([-1, 4])
+
+zero_box = get_bounding_box(pic_width, pic_high, annotations, iou=0.0)
+
+
+
+# figure = cv2.namedWindow('win', flags=0)
+#
+# cv2.imshow('win', pic)
+#
+# cv2.waitKey(0)
+
+print(pt.shape)
+
+idx_random_face = np.random.randint(0, pt.shape[0], 1)[0]
+
+print(idx_random_face)
+
+# time.sleep(1000)
+
+box_size = 48.0
+
+# print(annotations[0:10])
+
 #
 # num = len(annotations)
 # print("%d pics in total" % num)
@@ -65,19 +147,6 @@ with open(label_file, 'r') as f:
 #
 # print(ret)
 #
-annotation = annotations[9].strip().split(' ')
-#
-# print(annotation)
-#
-#
-#
-#
-
-box_size = 48.0
-
-join = lambda a: os.path.join(img_file, a + '.jpg')
-#
-pt = np.array(annotation[1:]).astype(np.float32).astype(np.int32).reshape([-1, 4])
 
 face_width = pt[0][2] - pt[0][0]
 face_high = pt[0][3] - pt[0][1]
@@ -95,14 +164,12 @@ print(scale)
 #
 # pt = np.array([448, 329, 448+24, 329+24])
 #
-pic = cv2.imread(join(annotation[0]))
+
 
 pic_width = pic.shape[1]*scale
 pic_high = pic.shape[0]*scale
 
 pic = cv2.resize(pic, (int(pic_width), int(pic_high)), interpolation=cv2.INTER_AREA)
-
-
 
 #
 # num = 1000
@@ -116,14 +183,12 @@ num = 100
 
 ret_r = np.random.rand(num, 2)
 
-
 ret_r[:, 0] = ret_r[:, 0]*pic_width - box_size
 ret_r[:, 1] = ret_r[:, 1]*pic_high - box_size
 
 # print(ret_y)
 
 # iou_ret = IoU()
-
 
 #
 
@@ -167,8 +232,5 @@ ret_r[:, 1] = ret_r[:, 1]*pic_high - box_size
 figure = cv2.namedWindow('win', flags=0)
 
 cv2.imshow('win', pic)
-
-
-cv2.waitKey(0)
 
 
