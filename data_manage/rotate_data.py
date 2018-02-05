@@ -19,74 +19,6 @@ import matplotlib.image as mpimg
 #         self._dis_scale = {'small': 18,
 #                            'big': 30}
 
-def IoU(box, boxes):
-    """Compute IoU between detect box and gt boxes
-
-    Parameters:
-    ----------
-    box: numpy array , shape (5, ): x1, y1, x2, y2, score
-        input box
-    boxes: numpy array, shape (n, 4): x1, y1, x2, y2
-        input ground truth boxes
-
-    Returns:
-    -------
-    ovr: numpy.array, shape (n, )
-        IoU
-    """
-    box_area = (box[2] - box[0]) * (box[3] - box[1])
-    area = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
-    xx1 = np.maximum(box[0], boxes[:, 0])
-    yy1 = np.maximum(box[1], boxes[:, 1])
-    xx2 = np.minimum(box[2], boxes[:, 2])
-    yy2 = np.minimum(box[3], boxes[:, 3])
-
-    # compute the width and height of the bounding box
-    w = np.maximum(0, xx2 - xx1)
-    h = np.maximum(0, yy2 - yy1)
-
-    inter = w * h
-    ovr = inter / (box_area + area - inter)
-    return ovr
-
-def img_random_operate(pic, idx):
-    op = np.random.randint(0, 4, 1)[0]
-
-    op0 = tf.image.random_brightness(pic, 0.6, seed=idx)
-    op1 = tf.image.random_contrast(pic, lower=0.2, upper=2.0, seed=idx)
-    op2 = tf.image.random_saturation(image=pic, lower=0.1, upper=1.5, seed=idx)
-    op3 = tf.image.random_hue(image=pic, max_delta=0.2, seed=idx)
-
-    with tf.Session() as sess:
-
-        if (op == 0):
-            ret = sess.run(op0)
-            print('brightness')
-        elif (op == 1):
-            ret = sess.run(op1)
-            print('contrast')
-        elif (op == 2):
-            ret = sess.run(op2)
-            print('saturation')
-        elif (op == 3):
-            ret = sess.run(op3)
-            print('hue')
-    return ret
-
-# zero bounding box use global random select
-def get_zero_bounding_box(width, high, annotations):
-    return [[0.5, 0.0, 0, 0, 100, 100], [0.5, 0.0, 100, 100, 200, 200]]
-
-# normal bounding box use face random.randn select
-def get_normal_bounding_box(width, high, annotations, iou):
-    return [[1, 0.5, 300, 300, 400, 400], [1, 0.5, 500, 500, 600, 600]]
-
-def get_bounding_box(width, high, annotations, iou):
-    if iou == 0.0:
-        return get_zero_bounding_box(width, high, annotations)
-    else:
-        return get_normal_bounding_box(width, high, annotations, iou)
-
 iou_field = np.linspace(0.1, 1.0, 10)
 
 print(iou_field)
@@ -179,7 +111,6 @@ box_size = 48.0
 # pt = np.array([448, 329, 448+24, 329+24])
 #
 
-
 # pic_width = pic.shape[1]*scale
 # pic_high = pic.shape[0]*scale
 
@@ -233,11 +164,8 @@ ret_r[:, 0] = ret_r[:, 0]*pic_width - box_size
 ret_r[:, 1] = ret_r[:, 1]*pic_high - box_size
 
 # print(ret_y)
-
-# iou_ret = IoU()
-
 #
-
+# iou_ret = IoU()
 #
 # center = np.array([pt[0] + int(pt_width/2)-12, pt[1] + int(pt_high/2)-12, pt[0] + int(pt_width/2) + 12, pt[1] + int(pt_high/2) + 12])
 #

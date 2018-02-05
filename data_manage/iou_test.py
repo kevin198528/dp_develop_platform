@@ -37,7 +37,9 @@ if __name__ == '__main__':
     # print(boxes)
     # print(IoU(box, boxes))
 
-    a = 18
-    b = 24
-    c = 9*9
-    print(c/(a*a + b*b - c))
+    # a = 24
+    # b = 30
+    # c = np.power(24, 2)
+    # print(c/(a*a + b*b - c))
+
+    print(24*0.7)
