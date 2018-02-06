@@ -42,4 +42,8 @@ if __name__ == '__main__':
     # c = np.power(24, 2)
     # print(c/(a*a + b*b - c))
 
-    print(24*0.7)
+    a = np.array([1, 2, 3])
+    b = np.array([4, 5, 6])
+
+    c = [x + y for x, y in zip(a, b)]
+    print(c)
