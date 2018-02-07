@@ -48,12 +48,11 @@ class DataProcessor(object):
 
             self._file_list.append(list_tmp)
 
-        print(self._file_list)
-        print(self._file_list[0])
+        # print(self._file_list)
+        # print(self._file_list[0])
         print('data processor init')
 
     def _float_feature(self, value):
-        print(value)
         return tf.train.Feature(float_list=tf.train.FloatList(value=value))
 
     # notice value must be list not numpy array
@@ -80,7 +79,9 @@ class DataProcessor(object):
                 print('input error')
 
         features = tf.train.Features(feature=input_dict)
+
         record = tf.train.Example(features=features)
+
         return record.SerializeToString()
 
     def decode_record(self, record):
@@ -184,18 +185,26 @@ def var_arg(**dict):
 
 
 # tf.image.rot90()
-
 if __name__ == '__main__':
-    # dp = DataProcessor()
-    # # record = dp.code_record(data=[1, 2, 3], label=[1004.123, 1005.123, 1006.123])
-    # # with tf.python_io.TFRecordWriter('test/test.tfrecords') as writer:
-    # #     writer.write(record)
-    #
-    # data, label = dp.test_read_record(['test/test.tfrecords'])
-    #
-    # print([data, label])
+    dp = DataProcessor()
+    record1 = dp.code_record(data=['byte', 1, 2, 3], label=['float', 1004.123, 1005.123, 1006.123])
+    record2 = dp.code_record(data=['byte', 4, 5, 6], label=['float', 1001.123, 1002.123, 1003.123])
+
+    with tf.python_io.TFRecordWriter('test.tfrecords') as writer:
+        writer.write(record1)
+        writer.write(record2)
+
+    data, label = dp.test_read_record(['test.tfrecords'])
+
+    print([data, label])
+
+    data, label = dp.test_read_record(['test.tfrecords'])
+
+    print([data, label])
+
+    time.sleep(1000)
+
     ret = var_arg(data=['byte', 1, 2, 3], label=['float', 1.2, 3.1, 1.1])
-    print(ret)
 
     # print(['byte', 1, 2, 3])
     # print(['float', 1, 2, 3])

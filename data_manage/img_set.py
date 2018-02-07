@@ -6,9 +6,10 @@ import copy
 import sys
 import time
 
+
 class ImgBase(object):
 
-    def __init__(self, img, annotation):
+    def __init__(self, img, anno_boxes, face_idx):
         """
         raw img annotation and std size
         each picture process one face annotation
@@ -25,9 +26,10 @@ class ImgBase(object):
 
         """
         self._img = img
-        self._resize_img = self._img
         self._bounding_box = np.array([0, 0, 0, 0])
-        self._annotation = annotation
+        self._zero_box = np.array([0, 0, 0, 0])
+        self._annotation = anno_boxes[face_idx]
+        self._anno_boxes = anno_boxes
 
         """
         _zoom_ratio: -0.2~0.2 describe the picture zoom degree
@@ -41,12 +43,8 @@ class ImgBase(object):
         """
         self._img_high = self._img.shape[0]
         self._img_width = self._img.shape[1]
-        self._resize_img_high = self._img_high
-        self._resize_img_width = self._img_width
         self._face_width = self._annotation[2] - self._annotation[0]
         self._face_high = self._annotation[3] - self._annotation[1]
-        self._resize_face_width = self._face_width
-        self._resize_face_high = self._face_high
 
     def get_zoom_ratio(self):
         return self._zoom_ratio
@@ -118,6 +116,7 @@ class ImgBase(object):
         self._img_high = self._img.shape[0]
         self._img_width = self._img.shape[1]
         self._annotation = self._annotation * scale
+        self._anno_boxes = self._anno_boxes * scale
         self._face_width = self._annotation[2] - self._annotation[0]
         self._face_high = self._annotation[3] - self._annotation[1]
 
@@ -212,8 +211,29 @@ class ImgBase(object):
         ovr = inter / (box_area + area - inter)
         return ovr
 
+    def random_zero_box(self):
+        local_count = 0
+        while True:
+            local_count += 1
+            if local_count > 100:
+                break
+
+            if self._img_width < 50 or self._img_high < 50:
+                break
+
+            random_x = np.random.randint(0, self._img_width - 24, 1)[0]
+            random_y = np.random.randint(0, self._img_high - 24, 1)[0]
+            zero_box = np.array([random_x, random_y, random_x + 24, random_y + 24])
+            zero_iou = self.iou(zero_box, self._anno_boxes)
+
+            if 0.0 == np.sum(zero_iou):
+                self._zero_box = zero_box.copy()
+                return True
+
+        return False
+
     def random_bounding_box(self):
-        factor = np.random.randn(2)*0.2
+        factor = np.random.randn(2)*0.3
         self._bounding_box[0] = self._annotation[0] + factor[0]*24
         self._bounding_box[1] = self._annotation[1] + factor[1]*24
         self._bounding_box[2] = self._bounding_box[0] + 24
@@ -223,7 +243,7 @@ class ImgBase(object):
                 (self._bounding_box[1] < 0) or (self._bounding_box[1] >= self._img_high) or \
                 (self._bounding_box[2] < 0) or (self._bounding_box[2] >= self._img_width) or \
                 (self._bounding_box[3] < 0) or (self._bounding_box[3] >= self._img_high):
-            factor = np.random.randn(2) * 0.1
+            factor = np.random.randn(2) * 0.10
             self._bounding_box[0] = self._annotation[0] + factor[0] * 24
             self._bounding_box[1] = self._annotation[1] + factor[1] * 24
             self._bounding_box[2] = self._bounding_box[0] + 24
@@ -257,83 +277,116 @@ class ImgBase(object):
         bounding_box = self._img[y_s:y_e, x_s:x_e]
         cv2.imwrite(file, bounding_box, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
+    def save_zero_box(self, file):
+        x_s = self._zero_box[0]
+        x_e = self._zero_box[2]
+        y_s = self._zero_box[1]
+        y_e = self._zero_box[3]
+        zero_box = self._img[y_s:y_e, x_s:x_e]
+        cv2.imwrite(file, zero_box, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+
+
 # first test one img change
 # second test img set change
-class ImgSet(ImgBase):
+class ImgSet(object):
 
-    def __init__(self):
+    def __init__(self, img_file, label_file, face_to_box_num=10):
+        self._img_file = img_file
+        self._label_file = label_file
+        self._face_to_box_num = face_to_box_num
+
+        with open(label_file, 'r') as file:
+            self._annotations = file.readlines()
+
+    def check_path(self, path):
+        if not os.path.exists(path):
+            os.mkdir(path)
+
+    def create_img_view(self, save_path, num):
+        self.check_path(save_path)
+
+        join_read = lambda pic: os.path.join(self._img_file, pic + '.jpg')
+        join_save = lambda pic: os.path.join(save_path, pic + '.jpg')
+
+        face_idx = 0
+        while face_idx < num:
+            idx_random_img = np.random.randint(0, len(self._annotations), 1)[0]
+            img_anno = self._annotations[idx_random_img].strip().split(' ')
+            img_anno_boxs = np.array(img_anno[1:]).astype(np.float32).astype(np.int32).reshape([-1, 4])
+            idx_random_face = np.random.randint(0, img_anno_boxs.shape[0], 1)[0]
+
+            pic = cv2.imread(join_read(img_anno[0]))
+
+            img = ImgBase(pic, img_anno_boxs, idx_random_face)
+
+            if img.check_face_size() is False:
+                print('img face is smaller than 16')
+                continue
+
+            face_box = 0
+            while face_box < self._face_to_box_num:
+                # img_tmp = copy.copy(img)
+                # # img_tmp.property_change()
+                # img_tmp.zoom_change(24, random_scale=True)
+                # while img_tmp.random_bounding_box() is not True:
+                #     img_tmp = copy.copy(img)
+                #     # img_tmp.property_change()
+                #     img_tmp.zoom_change(24, random_scale=True)
+
+                local_count = 0
+                while True:
+                    local_count += 1
+                    if local_count > 100:
+                        break
+                    img_tmp = copy.copy(img)
+                    img_tmp.zoom_change(24, random_scale=True)
+                    if img_tmp.random_bounding_box() is True:
+                        break
+
+                face_ratio = img_tmp.get_face_probability()
+                if face_ratio <= 0:
+                    continue
+
+                # img_tmp.random_zero_box()
+
+                zoom_ratio = img_tmp.get_zoom_ratio()
+                iou_ratio = img_tmp.get_iou_ratio()
+
+                pos = img_tmp.get_position_ratio()
+
+                # if face_ratio > 0.9:
+                #     save_file = join_save(str(i) + '=====' + str(face_ratio))
+                # else:
+                save_file = join_save(str(face_idx) + '_' + str(face_box) + '_' + str(zoom_ratio) + '_' +
+                                      str(iou_ratio) + '_' + str(face_ratio) + '+' + str(pos[0]) + '_' +
+                                      str(pos[1]) + '_' + str(pos[2]) + '_' + str(pos[3]))
+
+                img_tmp.save_bounding_box(save_file)
+
+                if img_tmp.random_zero_box() is True:
+                    zero_file = join_save('zs' + '_' + str(face_idx) + '_' + str(face_box) + '_' + 'ze')
+                    img_tmp.save_zero_box(zero_file)
+
+                face_box += 1
+
+            face_idx += 1
+
+    def create_tfrecord(self, save_path, num):
         pass
-
 
 if __name__ == '__main__':
     img_file = '/home/kevin/face/wider_face/WIDER_train/images'
+
     label_file = './wider_face_train.txt'
-    save_top_path = '/home/kevin/face/face_data'
-    join = lambda a: os.path.join(img_file, a + '.jpg')
-    join_save = lambda a: os.path.join(save_top_path, a + '.jpg')
 
-    # join_save = lambda a: os.path.join(save_top_path, a + '.jpg')
+    view_save_path = '/home/kevin/face/face_data/view'
 
-    with open(label_file, 'r') as f:
-        annotations = f.readlines()
+    tfrecord_save_path = '/home/kevin/face/face_data/tfrecord'
 
-    # select random img
-    # idx_random_img = np.random.randint(0, len(annotations), 1)[0]
-    idx_random_img = 922
-    annotation = annotations[idx_random_img].strip().split(' ')
+    record_num = 1000
 
-    """
-    select random annotation
-    """
-    annotations = np.array(annotation[1:]).astype(np.float32).astype(np.int32).reshape([-1, 4])
+    view_num = 100
 
-    print(annotations.shape)
+    process_img_set = ImgSet(img_file, label_file)
 
-    time.sleep(1000)
-
-    # idx_anno = np.random.randint(0, annotations.shape[0], 1)[0]
-    idx_anno = 8
-
-    # read img
-    pic = cv2.imread(join(annotation[0]))
-
-    img = ImgBase(pic, annotations[idx_anno])
-
-    if img.check_face_size() is False:
-        print('img face is smaller than 16')
-        sys.exit()
-
-    # img.property_change()
-    for i in range(200):
-        img_tmp = copy.copy(img)
-        # img_tmp.property_change()
-        img_tmp.zoom_change(24, random_scale=True)
-        while img_tmp.random_bounding_box() is not True:
-            img_tmp = copy.copy(img)
-            # img_tmp.property_change()
-            img_tmp.zoom_change(24, random_scale=True)
-
-        face_ratio = img_tmp.get_face_probability()
-        zoom_ratio = img_tmp.get_zoom_ratio()
-        iou_ratio = img_tmp.get_iou_ratio()
-
-        pos = img_tmp.get_position_ratio()
-
-        if face_ratio > 0.9:
-            save_file = join_save(str(i) + '=====' + str(face_ratio))
-        else:
-            save_file = join_save(str(i) + '_' + str(zoom_ratio) + '_' + str(iou_ratio) + '_' +
-                              str(face_ratio) + '+' + str(pos[0]) + '_' + str(pos[1]) + '_' +
-                              str(pos[2]) + '_' + str(pos[3]))
-
-
-
-        img_tmp.save_bounding_box(save_file)
-
-    # save_path = join_save(str(total_idx) + '_' + str(local_index) + '_' + str(box[0]) + '_' + str(box[1]))
-    #
-    # print(save_path)
-    #
-    # cv2.imwrite(save_path, crop, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-
-    img.show()
+    process_img_set.create_img_view(view_save_path, view_num)

@@ -114,7 +114,6 @@ class MnistData(DataProcess):
         return {self._abs_data: test_data,
                 self._abs_label: test_label}
 
-
 if __name__ == '__main__':
     mnist_data = MnistData()
     print(mnist_data._raw_mnist_data.train.images.shape)
