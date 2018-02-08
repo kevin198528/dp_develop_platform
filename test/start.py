@@ -1,8 +1,7 @@
-import pickle
-from data_process import *
-from nn_layer import *
-from loss_method import *
-from deep_learning_frame import *
+from data.data_process import *
+from net.nn_layer import *
+from loss.loss_method import *
+from core.deep_learning_frame import *
 
 class SuperParam(object):
 
@@ -102,7 +101,7 @@ dp.test()
 #     # print(dict_data['labels'])
 #     for key, value in dict_data.items():
 #         print(key)
-#
+#from include_pkg import *
 #     data = np.array(dict_data[b'data'])
 #
 #     labels = np.array(dict_data[b'labels'])
@@ -117,7 +116,7 @@ dp.test()
 #     f.close()
 #
 #     # fw = open("pickle_batch_10", "wb+")
-#     #
+#     #from include_pkg import *
 #     # d = {'data':pk_data, 'label':pk_label}
 #     # pickle.dump(d, fw)
 #     # fw.close()
@@ -163,8 +162,6 @@ dp.test()
 # feature = tf.nn.conv2d(data, f, [1, 2, 2, 1], padding='SAME')
 #
 # ttu.print_var(feature)
-
-import numpy as np
 
 # data = tf.constant([[[0.8, 0.6], [0.1, 0.3], [0.5, 0.1]], [[0.8, 0.6], [0.1, 0.3], [0.5, 0.1]]])
 #

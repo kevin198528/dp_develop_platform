@@ -1,4 +1,3 @@
-from include_pkg import *
 import tensorflow as tf
 import numpy as np
 
@@ -63,6 +62,7 @@ def variable_summaries(var):
         # tf.summary.scalar('min', tf.reduce_min(var))
         # 用直方图记录参数的分布
         tf.summary.histogram('his', var)
+
 
 mnist = input_data.read_data_sets('../data_set/mnist/', one_hot=True)
 

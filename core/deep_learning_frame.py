@@ -1,5 +1,6 @@
-from include_pkg import *
 import tensorflow as tf
+import numpy as np
+import os
 
 
 class DeepLearningFrame(object):

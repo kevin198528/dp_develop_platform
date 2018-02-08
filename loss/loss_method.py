@@ -1,6 +1,7 @@
 from include_pkg import *
 import tensorflow as tf
-import tf_test_utils as ttu
+from test import tf_test_utils as ttu
+
 
 class LossMethod(object):
 
