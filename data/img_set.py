@@ -5,6 +5,8 @@ import os
 import copy
 import sys
 import time
+import pickle
+import matplotlib.pyplot as plt
 
 
 class ImgBase(object):
@@ -61,7 +63,7 @@ class ImgBase(object):
         box_tmp[2] = box_tmp[0] + 24
         box_tmp[3] = box_tmp[1] + 24
         iou_max = self.iou(self._annotation, box_tmp.reshape([-1, 4]))
-        return iou_current / iou_max
+        return (iou_current / iou_max)[0]
 
     def get_face_probability(self):
         """
@@ -103,7 +105,7 @@ class ImgBase(object):
         if random_scale is False:
             rand_factor = 0.0
         elif random_scale is True:
-            rand_factor = np.random.randn(1)*0.2
+            rand_factor = np.random.randn(1)[0]*0.2
 
         if max(self._face_high, self._face_width) < std_size:
             scale = 1.0
@@ -277,6 +279,15 @@ class ImgBase(object):
         bounding_box = self._img[y_s:y_e, x_s:x_e]
         cv2.imwrite(file, bounding_box, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
+    def get_bounding_box_img(self):
+        x_s = self._bounding_box[0]
+        x_e = self._bounding_box[2]
+        y_s = self._bounding_box[1]
+        y_e = self._bounding_box[3]
+        bounding_box = self._img[y_s:y_e, x_s:x_e]
+        bounding_box = np.reshape(bounding_box, [1, 24, 24, 3])
+        return bounding_box
+
     def save_zero_box(self, file):
         x_s = self._zero_box[0]
         x_e = self._zero_box[2]
@@ -285,6 +296,14 @@ class ImgBase(object):
         zero_box = self._img[y_s:y_e, x_s:x_e]
         cv2.imwrite(file, zero_box, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
+    def get_zero_box_img(self):
+        x_s = self._zero_box[0]
+        x_e = self._zero_box[2]
+        y_s = self._zero_box[1]
+        y_e = self._zero_box[3]
+        zero_box = self._img[y_s:y_e, x_s:x_e]
+        zero_box = np.reshape(zero_box, [1, 24, 24, 3])
+        return zero_box
 
 # first test one img change
 # second test img set change
@@ -307,6 +326,8 @@ class ImgSet(object):
 
         join_read = lambda pic: os.path.join(self._img_file, pic + '.jpg')
         join_save = lambda pic: os.path.join(save_path, pic + '.jpg')
+
+
 
         face_idx = 0
         while face_idx < num:
@@ -363,6 +384,8 @@ class ImgSet(object):
 
                 img_tmp.save_bounding_box(save_file)
 
+
+
                 if img_tmp.random_zero_box() is True:
                     zero_file = join_save('zs' + '_' + str(face_idx) + '_' + str(face_box) + '_' + 'ze')
                     img_tmp.save_zero_box(zero_file)
@@ -374,19 +397,178 @@ class ImgSet(object):
     def create_tfrecord(self, save_path, num):
         pass
 
+    def create_pickle(self, save_path, num):
+        self.check_path(save_path)
+
+        join_read = lambda pic: os.path.join(self._img_file, pic + '.jpg')
+        join_save = lambda pic: os.path.join(save_path, pic + '.jpg')
+
+        data = np.zeros([1, 24, 24, 3], np.int32)
+        label = np.zeros([1, 6], np.float32)
+
+        face_idx = 0
+        while face_idx < num:
+            idx_random_img = np.random.randint(0, len(self._annotations), 1)[0]
+            img_anno = self._annotations[idx_random_img].strip().split(' ')
+            img_anno_boxs = np.array(img_anno[1:]).astype(np.float32).astype(np.int32).reshape([-1, 4])
+            idx_random_face = np.random.randint(0, img_anno_boxs.shape[0], 1)[0]
+
+            pic = cv2.imread(join_read(img_anno[0]))
+
+            img = ImgBase(pic, img_anno_boxs, idx_random_face)
+
+            if img.check_face_size() is False:
+                print('img face is smaller than 16')
+                continue
+
+            face_box = 0
+            while face_box < self._face_to_box_num:
+                # img_tmp = copy.copy(img)
+                # # img_tmp.property_change()
+                # img_tmp.zoom_change(24, random_scale=True)
+                # while img_tmp.random_bounding_box() is not True:
+                #     img_tmp = copy.copy(img)
+                #     # img_tmp.property_change()
+                #     img_tmp.zoom_change(24, random_scale=True)
+
+                local_count = 0
+                while True:
+                    local_count += 1
+                    if local_count > 100:
+                        break
+                    img_tmp = copy.copy(img)
+                    img_tmp.zoom_change(24, random_scale=True)
+                    if img_tmp.random_bounding_box() is True:
+                        break
+
+                face_ratio = img_tmp.get_face_probability()
+                if face_ratio <= 0:
+                    continue
+
+                # img_tmp.random_zero_box()
+
+                zoom_ratio = img_tmp.get_zoom_ratio()
+                iou_ratio = img_tmp.get_iou_ratio()
+
+                pos = img_tmp.get_position_ratio()
+
+                # if face_ratio > 0.9:
+                #     save_file = join_save(str(i) + '=====' + str(face_ratio))
+                # else:
+                save_file = join_save(str(face_idx) + '_' + str(face_box) + '_' + str(zoom_ratio) + '_' +
+                                      str(iou_ratio) + '_' + str(face_ratio) + '+' + str(pos[0]) + '_' +
+                                      str(pos[1]) + '_' + str(pos[2]) + '_' + str(pos[3]))
+
+                # append data
+                img_box = img_tmp.get_bounding_box_img()
+
+                data = np.append(data, img_box, axis=0)
+
+                # append label
+                label_data = np.array([[zoom_ratio, iou_ratio, pos[0], pos[1], pos[2], pos[3]]], np.float32)
+                label = np.append(label, label_data, axis=0)
+
+                img_tmp.save_bounding_box(save_file)
+
+                if img_tmp.random_zero_box() is True:
+                    # append data
+                    data = np.append(data, img_tmp.get_zero_box_img(), axis=0)
+                    # append label
+                    label_zero = np.array([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], np.float32)
+
+                    label = np.append(label, label_zero, axis=0)
+
+                    zero_file = join_save('zs' + '_' + str(face_idx) + '_' + str(face_box) + '_' + 'ze')
+                    img_tmp.save_zero_box(zero_file)
+
+                face_box += 1
+
+            face_idx += 1
+
+        return data, label
+
+
 if __name__ == '__main__':
-    img_file = '/home/kevin/face/wider_face/WIDER_train/images'
+    # img_file = '/home/kevin/face/wider_face/WIDER_train/images'
+    #
+    # label_file = '../doc/wider_face_train.txt'
+    #
+    # view_save_path = '/home/kevin/face/face_data/view'
+    #
+    # tfrecord_save_path = '/home/kevin/face/face_data/tfrecord'
+    #
+    # # record_num = 1000
+    #
+    # view_num = 500
+    #
+    # process_img_set = ImgSet(img_file, label_file)
+    #
+    # # process_img_set.create_img_view(view_save_path, view_num)
+    #
+    # data, label = process_img_set.create_pickle(view_save_path, view_num)
+    #
+    # dic = {'data': data[1:], 'lable': label[1:]}
+    #
+    # j = pickle.dumps(dic)
+    #
+    # f = open('1000_pic_pickle', 'wb')  # 注意是w是写入str,wb是写入bytes,j是'bytes'
+    # f.write(j)  # -------------------等价于pickle.dump(dic,f)
+    #
+    # f.close()
+    # -------------------------反序列化
 
-    label_file = './wider_face_train.txt'
+    f = open('1000_pic_pickle', 'rb')
 
-    view_save_path = '/home/kevin/face/face_data/view'
+    record = pickle.loads(f.read())  # 等价于data=pickle.load(f)
 
-    tfrecord_save_path = '/home/kevin/face/face_data/tfrecord'
+    data = record['data']
+    label = record['lable']
 
-    record_num = 1000
+    print(data.shape)
+    print(label.shape)
 
-    view_num = 100
+    print(label[40])
 
-    process_img_set = ImgSet(img_file, label_file)
+    img = data[40].astype(np.uint8)
+    img = img[:, :, (2, 1, 0)]
 
-    process_img_set.create_img_view(view_save_path, view_num)
+    plt.imshow(img)
+    plt.show()
+
+
+    # cv2.namedWindow('win1', flags=0)
+    # print(data[1][0])
+    # cv2.imshow('win1', data[1][0])
+    # cv2.waitKey(0)
+
+    # a = np.array([[[1, 2], [3, 4]]])
+    # b = np.array([[[5, 6], [7, 8]]])
+    #
+    # a = np.append(a, b, axis=0)
+    #
+
+
+    # print(a)
+
+
+    # d = np.array([1, 2, 3])
+    # l = np.array([4, 5, 6])
+    #
+    # dic = {'data':d, 'lable':l}
+    #
+    # print(type(dic))  # <class 'dict'>
+    #
+    # j = pickle.dumps(dic)
+    # print(type(j))  # <class 'bytes'>
+    #
+    # f = open('序列化对象_pickle', 'wb')  # 注意是w是写入str,wb是写入bytes,j是'bytes'
+    # f.write(j)  # -------------------等价于pickle.dump(dic,f)
+    #
+    # f.close()
+    # # -------------------------反序列化
+
+    # f = open('序列化对象_pickle', 'rb')
+    #
+    # data = pickle.loads(f.read())  # 等价于data=pickle.load(f)
+    #
+    # print(type(data['data']))

@@ -1,6 +1,8 @@
 import tensorflow as tf
 import numpy as np
-
+import pickle
+import time
+import matplotlib.pyplot as plt
 
 from tensorflow.examples.tutorials.mnist import input_data
 
@@ -64,42 +66,71 @@ def variable_summaries(var):
         tf.summary.histogram('his', var)
 
 
-mnist = input_data.read_data_sets('../data_set/mnist/', one_hot=True)
+f = open('9494_pic_pickle', 'rb')
 
-x = tf.placeholder("float", shape=[None, 784])
-y_ = tf.placeholder("float", shape=[None, 10])
+record = pickle.loads(f.read())  # 等价于data=pickle.load(f)
 
-B1 = tf.Variable(tf.random_normal([16], stddev=0.01))
-B2 = tf.Variable(tf.random_normal([32], stddev=0.01))
-B3 = tf.Variable(tf.random_normal([128], stddev=0.01))
+data = record['data']
+label = record['lable']
 
-SCAL1 = tf.Variable(tf.random_normal([16], mean=1.0, stddev=0.01))
-SCAL2 = tf.Variable(tf.random_normal([32], mean=1.0, stddev=0.01))
-SCAL3 = tf.Variable(tf.random_normal([128], mean=1.0, stddev=0.01))
+data = np.reshape(data, [9494, 24*24*3])
+
+mean = np.mean(data, axis=1).reshape(9494, 1)
+std = np.std(data, axis=1).reshape(9494, 1)
+
+data = (data - mean)/(std + 0.0001)
+
+data = np.reshape(data, [9494, 24, 24, 3])
+
+# pic = data[62]
+#
+# pic = pic.reshape(24, 24, 3)
+#
+# img = pic[:, :, (2, 1, 0)]
+#
+# plt.imshow(img)
+# plt.show()
+#
+# print(data[0])
+#
+# time.sleep(1000)
+
+# mnist = input_data.read_data_sets('../data_set/mnist/', one_hot=True)
+
+x = tf.placeholder("float", shape=[None, 24, 24, 3])
+y_ = tf.placeholder("float", shape=[None, 6])
+
+B1 = tf.Variable(tf.random_normal([64], stddev=0.01))
+B2 = tf.Variable(tf.random_normal([128], stddev=0.01))
+B3 = tf.Variable(tf.random_normal([256], stddev=0.01))
+
+SCAL1 = tf.Variable(tf.random_normal([64], mean=0.01, stddev=0.01))
+SCAL2 = tf.Variable(tf.random_normal([128], mean=0.01, stddev=0.01))
+SCAL3 = tf.Variable(tf.random_normal([256], mean=0.01, stddev=0.01))
 
 test_flag = tf.placeholder(dtype=tf.bool)
 
 keep_prob = tf.placeholder("float")
 
-W = tf.Variable(tf.zeros([784,10]))
-b = tf.Variable(tf.zeros([10]))
+W = tf.Variable(tf.zeros([24*24*3, 6]))
+b = tf.Variable(tf.zeros([6]))
 
-W_fc2 = weight_variable([1024, 10])
-b_fc2 = bias_variable([10])
+W_fc2 = weight_variable([1024, 6])
+b_fc2 = bias_variable([6])
 
-W_conv1 = weight_variable([2, 2, 1, 16])
-b_conv1 = bias_variable([16])
+W_conv1 = weight_variable([3, 3, 3, 64])
+b_conv1 = bias_variable([64])
 
-W_conv2 = weight_variable([2, 2, 16, 32])
-b_conv2 = bias_variable([32])
+W_conv2 = weight_variable([3, 3, 64, 128])
+b_conv2 = bias_variable([128])
 
-W_conv3 = weight_variable([7, 7, 32, 128])
-b_conv3 = bias_variable([128])
+W_conv3 = weight_variable([3, 3, 128, 256])
+b_conv3 = bias_variable([256])
 
-W_fc1 = weight_variable([1 * 1 * 128, 1024])
+W_fc1 = weight_variable([3*3*256, 1024])
 b_fc1 = bias_variable([1024])
 
-x_image = tf.reshape(x, [-1,28,28,1])
+x_image = tf.reshape(x, [-1, 24, 24, 3])
 
 bnepsilon = 1e-5
 
@@ -108,7 +139,7 @@ iter1 = tf.Variable(1, dtype=tf.float32)
 iter_update = tf.assign(iter1, iter1 + 1.0)
 
 with tf.control_dependencies([iter_update]):
-    t1 = tf.nn.conv2d(x_image, W_conv1, strides=[1, 2, 2, 1], padding='VALID')
+    t1 = tf.nn.conv2d(x_image, W_conv1, strides=[1, 1, 1, 1], padding='SAME')
 
 with tf.name_scope('iter1'):
     variable_summaries(iter1)
@@ -117,6 +148,9 @@ with tf.name_scope('iter1'):
 m1, v1 = tf.nn.moments(t1, [0, 1, 2])
 
 t1bn = tf.nn.batch_normalization(t1, m1, v1, B1, SCAL1, variance_epsilon=bnepsilon)
+
+t1bn = max_pool_2x2(t1bn)
+
 
 with tf.name_scope('l1_out_put'):
     variable_summaries(t1bn)
@@ -127,11 +161,13 @@ with tf.name_scope('offset1'):
 with tf.name_scope('scal1'):
     variable_summaries(SCAL1)
 
-t2 = tf.nn.conv2d(t1bn, W_conv2, strides=[1, 2, 2, 1], padding='VALID')
+t2 = tf.nn.conv2d(t1bn, W_conv2, strides=[1, 1, 1, 1], padding='SAME')
 
 m2, v2 = tf.nn.moments(t2, [0, 1, 2])
 
 t2bn = tf.nn.batch_normalization(t2, m2, v2, B2, SCAL2, variance_epsilon=bnepsilon)
+
+t2bn = max_pool_2x2(t2bn)
 
 with tf.name_scope('l2_out_put'):
     variable_summaries(t2bn)
@@ -142,7 +178,7 @@ with tf.name_scope('offset2'):
 with tf.name_scope('scal2'):
     variable_summaries(SCAL2)
 
-t3 = tf.nn.conv2d(t2bn, W_conv3, strides=[1, 1, 1, 1], padding='VALID')
+t3 = tf.nn.conv2d(t2bn, W_conv3, strides=[1, 1, 1, 1], padding='SAME')
 # t3 = conv2d(t2bn, W_conv3)
 
 m3, v3 = tf.nn.moments(t3, [0, 1, 2])
@@ -150,6 +186,8 @@ m3, v3 = tf.nn.moments(t3, [0, 1, 2])
 t3bn = tf.nn.batch_normalization(t3, m3, v3, B3, SCAL3, variance_epsilon=bnepsilon)
 
 # h_pool3 = max_pool_2x2(t3bn)
+
+t3bn = max_pool_2x2(t3bn)
 
 with tf.name_scope('l1_out_put'):
     variable_summaries(t3bn)
@@ -160,39 +198,60 @@ with tf.name_scope('offset3'):
 with tf.name_scope('scal3'):
     variable_summaries(SCAL3)
 
-h_pool2_flat = tf.reshape(t3bn, [-1, 1*1*128])
+h_pool2_flat = tf.reshape(t3bn, [-1, 3*3*256])
 h_fc1 = tf.matmul(h_pool2_flat, W_fc1) + b_fc1
+
+# y_conv = tf.nn.softmax(tf.matmul(h_fc1, W_fc2) + b_fc2)
 
 y_conv = tf.nn.softmax(tf.matmul(h_fc1, W_fc2) + b_fc2)
 
 sess = tf.InteractiveSession()
 
-cross_entropy = -tf.reduce_sum(y_*tf.log(y_conv))
-train_step = tf.train.AdamOptimizer(0.0001).minimize(cross_entropy)
+rand = tf.random_normal([100, 6], mean=0.0, stddev=2.0)
+# rand = tf.random_normal([100, 10], mean=0.0, stddev=1.0)
+rand = tf.abs(rand)
+rand = tf.minimum(1.0, rand)
+rand = tf.floor(rand)
+rand = tf.random_shuffle(rand)
+
+# cross_entropy = -tf.reduce_sum(y_*tf.log(y_conv))
+cross_entropy = -tf.reduce_sum(tf.log(1 - tf.abs(y_ - y_conv))*rand)
+
+
+train_step = tf.train.AdamOptimizer(0.00001).minimize(cross_entropy)
 correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 sess.run(tf.global_variables_initializer())
 
 train_writer = tf.summary.FileWriter('./summary/', sess.graph)
 merged = tf.summary.merge_all()
+
 for i in range(5000):
-    batch = mnist.train.next_batch(100)
+    rand_idx = np.random.randint(0, 9000, 1)[0]
+    batch_data = data[rand_idx:rand_idx+100, :, :, :]
+    batch_label = label[rand_idx:rand_idx+100, :]
+
+    # batch = mnist.train.next_batch(100)
     if i % 20 == 0:
-        train_accuracy = accuracy.eval(feed_dict={x:batch[0], y_: batch[1], test_flag: True, keep_prob: 1.0})
+        y_conv_test = y_conv.eval(feed_dict={x: batch_data, y_: batch_label, test_flag: True, keep_prob: 1.0})
+        # print(y_conv_test)
+        train_accuracy = cross_entropy.eval(feed_dict={x: batch_data, y_: batch_label, test_flag: True, keep_prob: 1.0})
         print("step %d, training accuracy %g"%(i, train_accuracy))
-        summary = sess.run(merged, feed_dict={x: batch[0], y_: batch[1], test_flag: True, keep_prob: 1.0})
+        summary = sess.run(merged, feed_dict={x: batch_data, y_: batch_label, test_flag: True, keep_prob: 1.0})
         train_writer.add_summary(summary, i)
 
-    train_step.run(feed_dict={x: batch[0], y_: batch[1], test_flag: False, keep_prob: 1.0})
+    # train_step.run(feed_dict={x: batch[0], y_: batch[1], test_flag: False, keep_prob: 1.0})
     # sess.run(update_ema, {x: batch[0], y_: batch[1], keep_prob: 1.0, tst: False, iter: i})
 
-test_batch = mnist.test.next_batch(2000)
 
-print(test_batch[0].shape)
-print(test_batch[1].shape)
 
-print("test accuracy %g" % accuracy.eval(feed_dict={x: test_batch[0], y_: test_batch[1], test_flag:False,
-                                                    keep_prob: 1.0}))
+# test_batch = mnist.test.next_batch(2000)
+
+# print(test_batch[0].shape)
+# print(test_batch[1].shape)
+#
+# print("test accuracy %g" % accuracy.eval(feed_dict={x: test_batch[0], y_: test_batch[1], test_flag:False,
+#                                                     keep_prob: 1.0}))
 
 # print("test accuracy %g" % accuracy.eval(feed_dict={x: mnist.test.images, y_: mnist.test.labels, test_flag:False,
 #                                                     keep_prob: 1.0}))
